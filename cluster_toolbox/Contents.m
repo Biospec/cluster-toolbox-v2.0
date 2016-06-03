@@ -12,7 +12,6 @@
 % band_area     integrate a peak/spectral band interactively (new!)
 % band_area2    integrate a peak/spectral band automatically by specifying 
 %               its start and end points (new!)
-% CO2corr       corrects for CO2 interference in FT-IR data
 % derivats      Savitzky & Golay derivatives main function
 % detrendm      detrends from first and last bin of a spectral matrix
 % emsc          extended multiplicative scatter correction
@@ -28,6 +27,7 @@
 % osc           orthogonal signal correction using Fearn's algorithm (new!)
 % qc_corr       correct long-term instrumental drifting using QCs (new!)
 % scalem        min-max normalisation (to a range of 0 to 1)
+% transco2corr  corrects for CO2 interference in FT-IR data
 % vecnorm       unit vector normalization (sum of squares of each row
 %               vector/spectrum = 1)
 %
