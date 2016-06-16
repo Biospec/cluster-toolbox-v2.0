@@ -5,6 +5,7 @@ function K = polyker(X, Y, p, b)
 % p: the oder of polynomial, set to 1, i.e. linear kernel if ignored
 % b: the bias term, set to 0 if ignored
 
+
 if nargin<2 || isempty(Y)
     Y = X;
 end
