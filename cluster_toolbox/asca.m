@@ -2,18 +2,29 @@ function output = asca(data, design_mat)
 
 % output = asca(data, design_mat)
 % ANOVA-simultaneous component analysis
-% data: the data matrix
-% design_mat: a cell array of 0/1 design matrices. Each
-% design matrix describes the experiment design of 
-% one particular factor, it should have a size of m by k
-% where m is the no. of samples and k is the no. of 
-% levels of that factor. Sample i of level  j is represented 
-% by having 1 in ith row, jth column and 0s at all else 
-% elements in ith row. 
+% data: the m by n data matrix in which each row is a sample and each
+%   column is a variable.
+% design_mat: a m by c design matrix in which c is the number of factors.
+%   different levels of each factor should be coded by different numbers such
+%   as 1,2,3 etc.
 % by Yun Xu, 2016
+% Updated 22/09/2016, changed design_mat from a cell array to a class
+%   infomation matrix which is probably more intuitive to use.
 
-no_factors=length(design_mat);
+design_mat_in = design_mat;
+no_factors=size(design_mat_in,2);
 no_samples=size(data,1);
+clear design_mat;
+for i=1:no_factors
+    unique_lvls = unique(design_mat_in(:,i));
+    no_lvls = length(unique_lvls);
+    design_mat_tmp = zeros(no_samples, no_lvls);
+    for ii=1:no_lvls
+        design_mat_tmp(design_mat_in(:,i) == unique_lvls(ii),ii) = 1;
+    end
+    design_mat{i} = design_mat_tmp;
+end
+
 for i=1:no_factors
     no_lvls(i)=size(design_mat{i},2);
 end
