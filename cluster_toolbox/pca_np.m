@@ -1,7 +1,10 @@
-function [tt,pp,pr] = PCA(X,comp)
-% [tt,pp,pr]=PCA(X,comp);
+function [tt,pp,pr] = pca_np(X,comp)
+% [tt,pp,pr]=pca_np(X,comp);
+% Principal component analysis (PCA)
 % comp is the number of principal components
 % Here the NIPALS algorithm is used
+% tt = scores
+% pp = loadings
 % pr = percentage explained variance 
 
 X0 = X;
