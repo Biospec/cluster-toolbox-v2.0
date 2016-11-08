@@ -19,7 +19,7 @@ function [tt,projXtt,pp,pr,U,projXU,V,eigenvals] = projpcdf(trainx,trainy,train_
 %
 
 %PCA and PC-DFA
-[tt,pp,pr]=pca(trainx,n_pc);
+[tt,pp,pr]=pca_np(trainx,n_pc);
 [U,V,eigenvals] = dfa(tt,trainy,n_df);
 
 %PCA projection
