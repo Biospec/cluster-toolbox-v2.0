@@ -16,7 +16,16 @@ function [tt,projXtt,pp,pr,U,projXU,V,eigenvals] = projpcdf(trainx,trainy,train_
 %Output as PCA and DFA plots - 1 vs 2; 1 vs 3; 2 vs 3.
 %
 % Copyright (c) 2002, Royston Goodacre
-%
+% Updated: 08/11/2016, automatically convert numeric labels to text and
+% changed pca to pca_np
+
+if isnumeric(train_names)
+    train_names = num2str(train_names);
+end
+
+if isnumeric(test_names)
+    test_names = num2str(test_names);
+end
 
 %PCA and PC-DFA
 [tt,pp,pr]=pca_np(trainx,n_pc);
