@@ -1,6 +1,6 @@
 function output = bayes_boots(data, label, rep_idx, no_loops)
 
-% output = bayes_boots(data, label, no_pcs, no_loops)
+% output = bayes_boots(data, label, rep_idx, no_loops)
 %inputs:
 %   data: the X block, each row is one sample
 %   label: the class labels of the samples
@@ -179,124 +179,6 @@ function output = bayes_boots(data, label, rep_idx, no_loops)
     disp('Averaged confusion matrix is:')
     disp(output.conf_mat_avg);       
     output = orderfields(output);
-end
-
-function [T,P,Q,W,b,X,Y]=pls(A,C,maxrank)
-% function [T,P,Q,W,b,X,Y]=pls(A,C,maxrank);
-%A: spectral matrix in training set
-%C: concentration matrix in training set
-%maxrank: the number of components to be extracted.
-%T: scores of spectral matrix
-%P: loadings of spectral matrix
-%Q: loadings of concentration matrix
-%W: weight matrix
-%b: coefficient
-%X: Residual spectral matrix
-%Y: Residual concentration matrix
-%This program is for general use, eithe PLS1 or PLS2.
-
-
-[m,n]=size(A);
-maxrank=min([m n maxrank]);
-
-X=A;
-% X=[A; diag(ones(n,1)*10)];
-Y=C;
-% Y=[Y; zeros(n,size(C,2))];
-for i=1:maxrank
-    XY=X'*Y;
-    [u,s,v]=svd(XY,0);
-    q=v(:,1);
-    w=u(:,1);
-    t=X*w;
-    p=t'*X/(t'*t);p=p';
-    u=Y*q;
-    b(i,1)=1/(t'*t)*t'*u;
-    X=X-t*p';
-    Y=Y-b(i)*t*q';
-    
-    T(:,i)=t;
-    W(:,i)=w;
-    Q(:,i)=q;
-    P(:,i)=p;
-    
-end
-end
-
-function [C,BV]=plspred2(X,P,Q,W,b,N,amean, cmean,ascal, cscal);
-%function [C,BV]=plspred2(X,P,Q,W,b,n,amean, cmean, ascal, cscal);
-%Same to plspred. But quick prediction procedure is used.
-%please refer to plspred
-[m,n]=size(X);
-if nargin<5
-    help plspred;
-    return;
-elseif nargin==5
-    N=size(P,2);
-elseif nargin==8
-%     [m,n]=size(X);
-    X=X-ones(m,1)*amean;
-elseif nargin>8
-    X=X-ones(m,1)*amean;
-    X=X./(ones(m,1)*ascal);
-end
-W=W(:,1:min(N, size(W,2)));
-P=P(:,1:min(N, size(W,2)));
-b=b(1:min(N, size(W,2)));
-Q=Q(:,1:min(N, size(W,2)));
-R=Q*diag(b);
-
-B=W*inv(P'*W)*R';
-C=X*B;
-BV=B;
-
-
-%  [m,n]=size(X);
-
-if nargin==8
-    C=C+ones(m,1)*cmean;
-end   
-if nargin==10
-    C=C+ones(m,1)*cmean;
-    C=C.*(ones(m,1)*cscal);
-end
-end
-
-function vip_scores = vip(T,P,w,B)
-%   vip_scores = vip(T,P,w,B)
-%   T = X-block scores
-%    P = X-block loadings
-%     w = X-block weights
-%     B = regression vectors for each column of y and each number of
-%           latent variables (reg) 
-%
-% OUTPUTS: 
-%  vip_scores = a set of column vectors equal in length to the number of
-%  variables included in the model. It contains one column of VIP scores
-%  for each predicted y-block column.
-%
-% See Chong & Jun, Chemo. Intell. Lab. Sys. 78 (2005) 103?12.
-%
-
-
-wpw  = (w/(P'*w));
-nx   = size(T,1);
-ny   = size(B,2);
-
-%pre-calculate some misc. things
-TT = sum(T.^2,1);
-w_norm = (w*diag(1./sqrt(sum(w.^2,1))));  %normalized weights
-
-for i = 1:ny;
-  %calculate regression in terms of scores (T*b = y_hat)
-  b  = wpw\B(:,i);
-
-  %calculate weighted T^2
-  SS = b.^2.*TT';
-
-  %VIP scores for this y
-  vip_scores(:,i) = nx*w_norm.^2*SS./sum(SS);
-end
 end
 
 function H = hatchfill(A,STYL,ANGLE,SPACING,FACECOL)
