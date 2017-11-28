@@ -6,10 +6,13 @@ function [] = plot_dfa(U,DF_x,DF_y,names)
 %names contains integer identifier file
 %
 % Copyright (c) 1997, Royston Goodacre
-%
+% Updated 2017, Yun Xu
 
 %asks for title
 tit = input('Title please (in quotes)  ');
+if isnumeric(names)
+    names = num2str(names(:));
+end
 
 figure
 
