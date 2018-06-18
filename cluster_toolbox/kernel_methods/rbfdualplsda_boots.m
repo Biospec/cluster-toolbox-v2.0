@@ -1,5 +1,5 @@
 function output = rbfdualplsda_boots(data, Y, rep, no_loops)
-% output = rbfdualplsr_boots(data, conc, rep, no_pcs, no_loops)
+% output = rbfdualplsda_boots(data, Y, rep, no_loops)
 % data: pre-processed data
 % Y: the class information vector
 % rep: an index vector indicating which samples are from the same bio-rep.
@@ -11,28 +11,16 @@ function output = rbfdualplsda_boots(data, Y, rep, no_loops)
 % no_loops: the number of iterations of bootstrapping resampling, set to
 %       1000 if not specified.
 % output
-%   .Cknown: the know concentrations of each bootstrapping test set
-%   .Cknown_av: averaged known concetrations of all the bootstrapping test sets
-%   .Cpred: the predicted concentrations of each bootstrapping test sets
-%   .Cpred_av: averaged predicted concetrations of all the bootstrapping test sets 
-%   .Cpred_std: the std of the predicted concentrations of all the bootstrapping test sets 
-%   .PLS_loadings: The PLS loadings
-%   .Q2_boots: cross-validated R2 of all the bootstrapping training sets,
-%              used for selecting the optimal PLS components.
-%   .Q2p: R2 of all the bootstrapping test sets.
-%   .no_pcs: the optimal PLS components selected for each bootstrapping
-%            iteration.
-%   .r2: R2 of the full data set, using the minimal no. of PLS components
-%       used by bootstrapping iterations.
-%   .rmsec: Root mean square error of the full data set, using the minimal no. 
-%          of PLS components used by bootstrapping iterations.
-%   .rmsecv_boots: Root mean square error of cross-validation of each of the
-%          bootstrapping training set.
-%   .rmsep: Root mean square error of the test set of each of the
-%          bootstrapping test set.
-%   .vip_scores: Variable Importance in Projection for each of the
-%          variables.
-
+%   .Cknown: the know class membership of each bootstrapping test set
+%   .Cpred: the predicted class membership of each bootstrapping test sets
+%   .ccr_cv: the correct classification rate of inner cross-validation
+%   .ccr: the correct classification rate of bootstrapped test set
+%   .ccr_perm: the correct classification rate of NULL models on bootstrapped test set
+%   .opt_k: the optimal number of PLS component
+%   .opt_G: the optimal gaussian width of RBF kernel
+%   .conf_mat: the confusion matrix of bootstrapped test set
+%   .conf_mat_perm: the confusion matrix of NULL models on bootstrapped test set
+%   .conf_mat_avg: the averaged confusion matrix of bootstrapped test set
 
 %Last update: 26/07/2016 - permutation test added Yun Xu
 
