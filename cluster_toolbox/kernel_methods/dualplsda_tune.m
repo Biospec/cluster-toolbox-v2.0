@@ -1,4 +1,4 @@
-function opt_parameter = dualplsda_tune(X, Y, ker, rep_idx)
+function opt_parameter = dualplsda_tune(X, Y, ker, rep_idx, displot)
 % opt_parameter = dualplsda_tune(X, Y, ker, rep_idx)
 % Tune kernel parameters and no. of latent variables of K-PLSDA model
 % X: the data matrix with each row represents a sample
@@ -24,11 +24,15 @@ if size(Y,2)==1
         Y(class_known == unique_cls(i),i)=1;
     end
 else
-    class_known = max(Y,[],2);
+    [~, class_known] = max(Y,[],2);
 end
-if nargin<4
+if nargin < 4
     rep_idx = 1:m;
     rep_idx = rep_idx(:);
+end
+
+if nargin < 5
+    displot = false;
 end
 
    
@@ -75,11 +79,13 @@ switch ker
             opt_K = opt_K(1);
         end
         opt_parameter.K = opt_K;
-        opt_parameter.max_ccr_cv = ccr_cv(opt_K);       
-        figure
-        plot(ccr_cv,'o-');
-        h=xlabel('No. of LVs'); set(h,'fontsize',14)
-        h=ylabel('Cross Validation CCR'); set(h, 'fontsize',14);
+        opt_parameter.max_ccr_cv = ccr_cv(opt_K);  
+        if displot
+            figure
+            plot(ccr_cv,'o-');
+            h=xlabel('No. of LVs'); set(h,'fontsize',14)
+            h=ylabel('Cross Validation CCR'); set(h, 'fontsize',14);
+        end
     case 'poly'
         degree = 2:10;
         cv = zeros(m, length(degree), max_factor);
@@ -119,17 +125,19 @@ switch ker
         opt_parameter.opt_p = degree(opt_p);
         opt_parameter.max_ccr_cv = ccr_cv(opt_k, opt_p);
         opt_parameter.cv_mat = ccr_cv;
-        figure
-        h = image(ccr_cv);
-        set(h,'CDatamapping','scaled');
-        colorbar
-        set(gca,'XTickLabel',num2str(degree(:)));
-        h = xlabel('Degrees'); set(h,'fontsize',14);
-        set(gca,'YTick',1:max_factor);
-        h = ylabel('No. of LVs'); set(h,'fontsize',14);
+        if displot
+            figure
+            h = image(ccr_cv);
+            set(h,'CDatamapping','scaled');
+            colorbar
+            set(gca,'XTickLabel',num2str(degree(:)));
+            h = xlabel('Degrees'); set(h,'fontsize',14);
+            set(gca,'YTick',1:max_factor);
+            h = ylabel('No. of LVs'); set(h,'fontsize',14);
+        end
     case 'rbf'
         Xnorm = sqrt(norm(X)/m);
-        gamma = logspace(log10(Xnorm/100),log10(Xnorm*100),15);
+        gamma = logspace(log10(Xnorm/10),log10(Xnorm*10),15);
         cv = zeros(m, length(gamma), max_factor);
         for i = 1:max_factor
             k = i; 
@@ -154,9 +162,21 @@ switch ker
                    Ytrn=Y; Ytrn(val_idx,:)=[];
                    Ktr = rbf(Xtrn,g);
                    Ktrte = rbf_two(Xtrn, Xval, g);
-                   [alpha,Yhat] = dualpls(Ktr,Ktrte,Ytrn,k);
-                   [pred_raw, pred_val] = max(Yhat,[],2);
-                   cv(val_idx,i,ii) = pred_val;
+                   if min(sum(Ytrn))>0
+                        [alpha,Yhat] = dualpls(Ktr,Ktrte,Ytrn,k);
+                        [pred_raw, pred_val] = max(Yhat,[],2);
+                        cv(val_idx,i,ii) = pred_val;
+                   else
+                       null_idx = find(sum(Ytrn)==0);
+                       Ytrn_tmp = Ytrn;
+                       no_cols = 1:size(Yval,2);
+                       Ytrn_tmp(:,null_idx)=[];
+                       [alpha,Yhat_tmp] = dualpls(Ktr, Ktrte,Ytrn_tmp,k);
+                       Yhat = zeros(size(Yval));
+                       Yhat(:, ~ismember(no_cols, null_idx)) = Yhat_tmp;
+                       [pred_raw, pred_val] = max(Yhat,[],2);
+                       cv(val_idx,i,ii) = pred_val;
+                   end
                 end
                 ccr_cv(i,ii)=length(find(cv(:,i,ii)==class_known))/m;
             end
@@ -167,16 +187,19 @@ switch ker
         opt_parameter.opt_gamma = gamma(opt_p);
         opt_parameter.max_ccr_cv = ccr_cv(opt_k, opt_p);
         opt_parameter.cv_mat = ccr_cv;
-        figure
-        h = image(ccr_cv);
-        set(h,'CDatamapping','scaled');
-        colorbar
-        gamma=round(log10(gamma)*10)/10;
-        set(gca,'XTick',1:15)
-        set(gca,'XTickLabel',num2str(gamma(:)));
-        h = xlabel('log10({\gamma})'); set(h,'fontsize',14);
-        set(gca,'YTick',1:max_factor);
-        h = ylabel('No. of LVs'); set(h,'fontsize',14);
+        if displot
+            figure
+            h = image(ccr_cv);
+            set(h,'CDatamapping','scaled');
+            colorbar
+            gamma=round(log10(gamma)*10)/10;
+            set(gca,'XTick',1:15)
+            set(gca,'XTickLabel',num2str(gamma(:)));
+            h = xlabel('log10({\gamma})'); set(h,'fontsize',14);
+            set(gca,'YTick',1:max_factor);
+            h = ylabel('No. of LVs'); set(h,'fontsize',14);
+        end
     otherwise
         error('unknown kernel, it has to be linear, poly or rbf')
 end
+
