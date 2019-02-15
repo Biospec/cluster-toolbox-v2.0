@@ -6,7 +6,7 @@ function lod = lod_calc(x,y,alpha)
 % alpha = specified false positve and negatvie error, set to 0.05 if
 %    ignored.
 
-if isempty(alpha)
+if ~exist('alpha', 'var')
     alpha = 0.05;
 end
 n = length(x);
