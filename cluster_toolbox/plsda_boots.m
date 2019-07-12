@@ -1,4 +1,4 @@
-function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
+function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
 
 % output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
 %inputs:
@@ -57,15 +57,27 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
         rep_idx=1:no_samples;
         rep_idx=rep_idx(:);
         no_loops=1000;
+        rebalance=true;
     end        
     
-    if nargin==3
+    
+    if nargin == 3
         no_pcs=15;
         no_loops=1000;
+        rebalance=true;
     end
     
     if nargin==4
         no_loops=1000;
+        rebalance=true;
+    end
+    
+    if nargin == 5
+        rebalance = true;
+    end
+    
+    if isempty(rep_idx) 
+        rep_idx = 1:no_samples;
     end
     
     if no_class==1
@@ -74,6 +86,8 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
         for i=1:length(unique_class);
             label_pls2(label==unique_class(i),i)=1;
         end
+    else
+        label_pls2 = label;
     end
     no_class=size(label_pls2,2);
     label=label_pls2;
@@ -91,11 +105,14 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
         data_trn=data(trn_idx2,:);
         no_reps_trn=length(trn_reps);
         no_sample_trn=size(data_trn,1);
-        data_centre=mean(data_trn); 
-        data_trn=data_trn-ones(no_sample_trn,1)*data_centre; 
+%         data_centre=mean(data_trn); 
+        
+        
         label_trn=label(trn_idx2,:); 
         [tmp,class_trn]=max(label_trn,[],2);
-        data_tst=data; data_tst(trn_idx2,:)=[]; 
+
+
+
         label_tst=label; label_tst(trn_idx2,:)=[];
         [tmp, class_tst]=max(label_tst,[],2);
 
@@ -105,6 +122,21 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
             continue;
         end
         
+        if rebalance
+            [data_trn, class_trn] = smote_sel(data_trn, class_trn, 5);
+            label_trn = zeros(size(data_trn,1), no_class);
+            for ii = 1:length(unique(class_trn))
+                label_trn(class_trn == ii, ii) = 1;
+            end
+            no_sample_trn = size(data_trn, 1);
+        end
+            
+        for ii = 1:no_class
+            cls_centres(ii,:) = median(data_trn(class_trn == ii, :));
+        end
+        data_centre = median(cls_centres);
+        data_trn=data_trn-ones(no_sample_trn,1)*data_centre; 
+        data_tst=data; data_tst(trn_idx2,:)=[]; 
         label_trn_perm=label_trn(randperm(size(label_trn,1)),:); 
         [tmp,class_trn_perm]=max(label_trn_perm,[],2);
         label_fittness=length(find(class_trn_perm==class_trn))/no_sample_trn;
@@ -130,8 +162,21 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
            val_idx=find(ismember(rep_idx_trn, val_reps));
            data_val=data_trn(val_idx,:);
            label_val=label_trn(val_idx,:);
+           class_trn_inner = class_trn;
+           class_trn_inner(val_idx) = [];
            data_trn_inner=data_trn; data_trn_inner(val_idx,:)=[];
-           data_centre_inner=mean(data_trn_inner); 
+%            data_centre_inner=mean(data_trn_inner); 
+           for iii = 1:no_class
+               idx = find(class_trn_inner == iii);
+               if numel(idx) > 1
+                   cls_centres_inner(iii,:) = median(data_trn_inner(idx, :));
+               elseif numel(idx) == 1
+                   cls_centres_inner(iii,:) = data_trn_inner(idx,:);
+               else
+                   cls_centres_innter(iii,:) = 0;
+               end
+           end
+           data_centre_inner = median(cls_centres_inner);
            data_trn_inner=data_trn_inner-repmat(data_centre_inner, size(data_trn_inner,1),1);
 %            data_val=data_val-repmat(data_centre_inner, length(val_idx),1);
            label_trn_inner=label_trn; label_trn_inner(val_idx,:)=[];
@@ -148,18 +193,24 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
            end
            class_val(val_idx, :)=class_val_inner;
         end
+        ccr_cv = zeros(min(no_pcs,no_sample_trn-fold_step), 1);
         for ii=1:min(no_pcs,no_sample_trn-fold_step)
+            F(ii,:) = fscores(class_trn, class_val(:,ii));
+            F_cv(ii) = mean(F(ii,:));
+        
+%         for ii=no_class:min(no_pcs,no_sample_trn-fold_step)
             correct_idx=find(class_val(:,ii)==class_trn);
             ccr_cv(ii)=(length(correct_idx))/length(class_trn);
         end
-        opt_pcs=find(ccr_cv==max(ccr_cv));
+        opt_pcs=find(F_cv==max(F_cv));
         if length(opt_pcs)>1
             opt_pcs=opt_pcs(1);
         end
         [T,P,Q,W,b]=pls(data_trn,label_trn,opt_pcs);
-        [T2,P2,Q2,W2,b2]=pls(data_trn,label_trn_perm,opt_pcs);
+        [T2,P2,Q2,W2,b2]=pls(data_trn,label_trn_perm,opt_pcs);        
         [pred_L, B]=plspred2(data_tst,P,Q,W,b,opt_pcs,data_centre,...
             label_centre,ones(1,no_var), ones(1,no_class));
+        vip_scores = vip(T,P,W,B);
         [pred_L2, B2]=plspred2(data_tst,P2,Q2,W2,b2,opt_pcs,data_centre,...
             label_centre,ones(1,no_var), ones(1,no_class));
 %         vip_scores=vip(T,P,W,B);
@@ -167,7 +218,9 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
         [tmp, class_tst_pred]=max(pred_L,[],2);
         [tmp, class_tst_pred2]=max(pred_L2,[],2);
         ccr=length(find(class_tst_pred==class_tst))/length(class_tst);
-        ccr2=length(find(class_tst_pred2==class_tst))/length(class_tst);    
+        Ftest = fscores(class_tst, class_tst_pred);
+        ccr2=length(find(class_tst_pred2==class_tst))/length(class_tst); 
+        Ftest2 = fscores(class_tst, class_tst_pred2);
         conf_mat=nan(no_class, no_class);
         conf_mat2=nan(size(conf_mat));
         for ii=1:no_class
@@ -188,7 +241,9 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
                     /length(find(class_tst==ii));
             end
         end
-
+        
+        output.pred_L{i} = pred_L;
+        output.known_class{i} = class_tst;
         output.class_known{i}=class_tst;
         output.class_pred{i}=class_tst_pred;
         output.label_pred{i}=pred_L;
@@ -196,9 +251,14 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
         output.conf_mat(:,:,i)=conf_mat;        
         output.conf_mat_perm(:,:,i)=conf_mat2;
         output.ccr(i)=ccr;
+        output.Fscores(i, :) = Ftest;
+        output.Fscores2(i, :) = Ftest2;
+        output.Fcv(i, :) = F(opt_pcs, :);
         output.ccr_perm(i)=ccr2;
         output.label_fittness(i)=label_fittness;
         output.ccr_cv(i)=max(ccr_cv);
+        output.vip_scores(:,:,i) = vip_scores;
+        output.reg_coeff(:,:,i) = B;
 %         output.vip{i}=vip_scores;
 %         output.vip_perm{i}=vip_scores2;
 %         output.scores{i}=T;
@@ -254,8 +314,8 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops)
     conc_mc=conc-repmat(cmean, size(conc,1),1);
     [T,P,Q,W,b]=pls(data_mc,conc_mc,no_pcs_final);
     [~,B] = plspred2(data,P,Q,W,b,no_pcs_final,amean, cmean);
-    vip_scores = vip(T,P,W,B);
-    output.vip_scores=vip_scores;
+%     vip_scores = vip(T,P,W,B);
+%     output.vip_scores=vip_scores;
     output.PLS_loadings=P;
     output.PLS_scores=T;
     output = orderfields(output);
@@ -828,3 +888,467 @@ function [xi,yi]=drawhatch(x,y,angle,step,xsc,ysc,speckle);
     xi = xy/xsc+x0;
     yi = yi/ysc+y0;
 end
+
+function F = fscores(class_known, class_pred)
+    unique_cls = unique(class_known);
+    no_cls = numel(unique_cls);
+    F = zeros(no_cls, 1);
+    for i = 1:no_cls
+        TP = numel(find(class_known == i & class_pred == i));
+        FP = numel(find(class_known ~= i & class_pred == i));
+        FN = numel(find(class_known == i & class_pred ~= i));
+        if TP + FP ==0
+            precision = 0;
+        else
+            precision = TP / (TP+FP);
+        end
+        if TP + FN == 0
+            recall = 0;
+        else            
+            recall = TP / (TP+FN);
+        end
+        if precision + recall == 0
+            F(i) = 0;
+        else
+            F(i) = 2 * (precision * recall) / (precision + recall);
+        end
+    end
+    
+end
+
+function [data_out, label_out] = smote_sel(data, label, k)
+
+    if nargin < 3
+        k = 5;
+    end
+
+    unique_cls = unique(label);
+    no_cls = length(unique_cls);
+    data_syn = [];
+    label_syn = [];
+    for i = 1:no_cls
+        sample_no(i, 1) = length(find(label == unique_cls(i)));
+    end
+    major_clsid = unique_cls(sample_no == max(sample_no));
+
+    for i = 1:no_cls
+        if unique_cls(i) == major_clsid
+            continue
+        end    
+        N = round(max(sample_no)/sample_no(i));
+        data_work = data(label == unique_cls(i), :);
+        NN_idx = nearestneighbour(data_work', 'NumberOfNeighbours', k);
+        S = [];
+        for ii = 1:sample_no(i)
+            syn_sample = populate(data_work(ii, :), N, ...
+                data_work(NN_idx(:, ii), :));
+            S = [S; syn_sample];        
+        end
+        new_sample_no = sample_no(i) + size(S,1);
+        if new_sample_no > max(sample_no)
+            S = S(randperm(size(S, 1)), :);
+            S = S(1:(max(sample_no) - sample_no(i)), :);
+        end
+        data_syn = [data_syn; S];
+        label_syn = [label_syn; repmat(unique_cls(i), size(S,1), 1)];
+    end
+
+    label_out = [label; label_syn];
+    [label_out, sort_idx] = sort(label_out);
+    data_out =[data; data_syn];
+    data_out = data_out(sort_idx,:);
+
+end
+
+function synthetic = populate(Sample, N, nnarray)
+    numattrs = size(nnarray,2);
+    synthetic = zeros(N, numattrs);
+    k = size(nnarray, 1);
+    dif = nnarray - repmat(Sample, k, 1);
+    for i = 1:N
+        nn = randi(k,1,1);
+        gap = rand(1, numattrs);
+        synthetic(i,:) = Sample + dif(nn,:).*gap;             
+    end
+end
+
+function [idx, tri] = nearestneighbour(varargin)
+%NEARESTNEIGHBOUR    find nearest neighbours
+%   IDX = NEARESTNEIGHBOUR(X) finds the nearest neighbour by Euclidean
+%   distance to each point (column) in X from X. X is a matrix with points
+%   as columns. IDX is a vector of indices into X, such that X(:, IDX) are
+%   the nearest neighbours to X. e.g. the nearest neighbour to X(:, 2) is
+%   X(:, IDX(2))
+%
+%   IDX = NEARESTNEIGHBOUR(P, X) finds the nearest neighbour by Euclidean
+%   distance to each point in P from X. P and X are both matrices with the
+%   same number of rows, and points are the columns of the matrices. Output
+%   is a vector of indices into X such that X(:, IDX) are the nearest
+%   neighbours to P
+%
+%   IDX = NEARESTNEIGHBOUR(I, X) where I is a logical vector or vector of
+%   indices, and X has at least two rows, finds the nearest neighbour in X
+%   to each of the points X(:, I).
+%   I must be a row vector to distinguish it from a single point.
+%   If X has only one row, the first input is treated as a set of 1D points
+%   rather than a vector of indices
+%
+%   IDX = NEARESTNEIGHBOUR(..., Property, Value)
+%   Calls NEARESTNEIGHBOUR with the indicated parameters set. Property
+%   names can be supplied as just the first letters of the property name if
+%   this is unambiguous, e.g. NEARESTNEIGHBOUR(..., 'num', 5) is equivalent
+%   to NEARESTNEIGHBOUR(..., 'NumberOfNeighbours', 5). Properties are case
+%   insensitive, and are as follows:
+%      Property:                         Value:
+%      ---------                         ------
+%         NumberOfNeighbours             natural number, default 1
+%            NEARESTNEIGHBOUR(..., 'NumberOfNeighbours', K) finds the closest
+%            K points in ascending order to each point, rather than the
+%            closest point. If Radius is specified and there are not
+%            sufficient numbers, fewer than K neighbours may be returned
+%
+%         Radius                         positive, default +inf
+%            NEARESTNEIGHBOUR(..., 'Radius', R) finds neighbours within
+%            radius R. If NumberOfNeighbours is not set, it will find all
+%            neighbours within R, otherwise it will find at most
+%            NumberOfNeighbours. The IDX matrix is padded with zeros if not
+%            all points have the same number of neighbours returned. Note
+%            that specifying a radius means that the Delaunay method will
+%            not be used.
+%
+%         DelaunayMode                   {'on', 'off', |'auto'|}
+%            DelaunayMode being set to 'on' means NEARESTNEIGHBOUR uses the
+%            a Delaunay triangulation with dsearchn to find the points, if
+%            possible. Setting it to 'auto' means NEARESTNEIGHBOUR decides
+%            whether to use the triangulation, based on efficiency. Note
+%            that the Delaunay triangulation will not be used if a radius
+%            is specified.
+%
+%         Triangulation                  Valid triangulation produced by
+%                                        delaunay or delaunayn
+%            If a triangulation is supplied, NEARESTNEIGHBOUR will attempt
+%            to use it (in conjunction with dsearchn) to find the
+%            neighbours.
+%
+%   [IDX, TRI] = NEARESTNEIGHBOUR( ... )
+%   If the Delaunay Triangulation is used, TRI is the triangulation of X'.
+%   Otherwise, TRI is an empty matrix
+%
+%   Example:
+%
+%     % Find the nearest neighbour in X to each column of X
+%     x = rand(2, 10);
+%     idx = nearestneighbour(x);
+%
+%     % Find the nearest neighbours to each point in p
+%     p = rand(2, 5);
+%     x = rand(2, 20);
+%     idx = nearestneighbour(p, x)
+%
+%     % Find the five nearest neighbours to points x(:, [1 6 20]) in x
+%     x = rand(4, 1000)
+%     idx = nearestneighbour([1 6 20], x, 'NumberOfNeighbours', 5)
+%
+%     % Find all neighbours within radius of 0.1 of the points in p
+%     p = rand(2, 10);
+%     x = rand(2, 100);
+%     idx = nearestneighbour(p, x, 'r', 0.1)
+%
+%     % Find at most 10 nearest neighbours to point p from x within a
+%     % radius of 0.2
+%     p = rand(1, 2);
+%     x = rand(2, 30);
+%     idx = nearestneighbour(p, x, 'n', 10, 'r', 0.2)
+%
+%
+%   See also DELAUNAYN, DSEARCHN, TSEARCH
+
+%TODO    Allow other metrics than Euclidean distance
+%TODO    Implement the Delaunay mode for multiple neighbours
+
+% Copyright 2006 Richard Brown. This code may be freely used and
+% distributed, so long as it maintains this copyright line
+error(nargchk(1, Inf, nargin, 'struct'));
+
+% Default parameters
+userParams.NumberOfNeighbours = []    ; % Finds one
+userParams.DelaunayMode       = 'auto'; % {'on', 'off', |'auto'|}
+userParams.Triangulation      = []    ;
+userParams.Radius             = inf   ;
+
+% Parse inputs
+[P, X, fIndexed, userParams] = parseinputs(userParams, varargin{:});
+
+% Special case uses Delaunay triangulation for speed.
+
+% Determine whether to use Delaunay - set fDelaunay true or false
+nX  = size(X, 2);
+nP  = size(P, 2);
+dim = size(X, 1);
+
+switch lower(userParams.DelaunayMode)
+    case 'on'
+        %TODO Delaunay can't currently be used for finding more than one
+        %neighbour
+        fDelaunay = userParams.NumberOfNeighbours == 1 && ...
+            size(X, 2) > size(X, 1)                    && ...
+            ~fIndexed                                  && ...
+            userParams.Radius == inf;
+    case 'off'
+        fDelaunay = false;
+    case 'auto'
+        fDelaunay = userParams.NumberOfNeighbours == 1 && ...
+            ~fIndexed                                  && ...
+            size(X, 2) > size(X, 1)                    && ...
+            userParams.Radius == inf                   && ...
+            ( ~isempty(userParams.Triangulation) || delaunaytest(nX, nP, dim) );
+end
+
+% Try doing Delaunay, if fDelaunay.
+fDone = false;
+if fDelaunay
+    tri = userParams.Triangulation;
+    if isempty(tri)
+        try
+            tri   = delaunayn(X');
+        catch
+            msgId = 'NearestNeighbour:DelaunayFail';
+            msg = ['Unable to compute delaunay triangulation, not using it. ',...
+                'Set the DelaunayMode parameter to ''off'''];
+            warning(msgId, msg);
+        end
+    end
+    if ~isempty(tri)
+        try
+            idx = dsearchn(X', tri, P')';
+            fDone = true;
+        catch
+            warning('NearestNeighbour:DSearchFail', ...
+                'dsearchn failed on triangulation, not using Delaunay');
+        end
+    end
+else % if fDelaunay
+    tri = [];
+end
+
+% If it didn't use Delaunay triangulation, find the neighbours directly by
+% finding minimum distances
+if ~fDone
+    idx = zeros(userParams.NumberOfNeighbours, size(P, 2));
+
+    % Loop through the set of points P, finding the neighbours
+    Y = zeros(size(X));
+    for iPoint = 1:size(P, 2)
+        x = P(:, iPoint);
+
+        % This is the faster than using repmat based techniques such as
+        % Y = X - repmat(x, 1, size(X, 2))
+        for i = 1:size(Y, 1)
+            Y(i, :) = X(i, :) - x(i);
+        end
+
+        % Find the closest points, and remove matches beneath a radius
+        dSq = sum(abs(Y).^2, 1);
+        iRad = find(dSq < userParams.Radius^2);
+        if ~fIndexed
+            iSorted = iRad(minn(dSq(iRad), userParams.NumberOfNeighbours));
+        else
+            iSorted = iRad(minn(dSq(iRad), userParams.NumberOfNeighbours + 1));
+            iSorted = iSorted(2:end);
+        end
+
+        % Remove any bad ones
+        idx(1:length(iSorted), iPoint) = iSorted';
+    end
+    %while ~isempty(idx) && isequal(idx(end, :), zeros(1, size(idx, 2)))
+    %    idx(end, :) = [];
+    %end
+    idx( all(idx == 0, 2), :) = [];
+end % if ~fDone
+if isvector(idx)
+    idx = idx(:)';
+end
+end % nearestneighbour
+
+
+
+
+%DELAUNAYTEST   Work out whether the combination of dimensions makes
+%fastest to use a Delaunay triangulation in conjunction with dsearchn.
+%These parameters have been determined empirically on a Pentium M 1.6G /
+%WinXP / 512MB / Matlab R14SP3 platform. Their precision is not
+%particularly important
+function tf = delaunaytest(nx, np, dim)
+switch dim
+    case 2
+        tf = np > min(1.5 * nx, 400);
+    case 3
+        tf = np > min(4 * nx  , 1200);
+    case 4
+        tf = np > min(40 * nx , 5000);
+
+        % if the dimension is higher than 4, it is almost invariably better not
+        % to try to use the Delaunay triangulation
+    otherwise
+        tf = false;
+end % switch
+end % delaunaytest
+
+
+
+
+%MINN   find the n most negative elements in x, and return their indices
+%  in ascending order
+function I = minn(x, n)
+
+% Make sure n is no larger than length(x)
+n = min(n, length(x));
+
+% Sort the first n
+[xsn, I] = sort(x(1:n));
+
+% Go through the rest of the entries, and insert them into the sorted block
+% if they are negative enough
+for i = (n+1):length(x)
+    j = n;
+    while j > 0 && x(i) < xsn(j)
+        j = j - 1;
+    end
+
+    if j < n
+        % x(i) should go into the (j+1) position
+        xsn = [xsn(1:j), x(i), xsn((j+1):(n-1))];
+        I   = [I(1:j), i, I((j+1):(n-1))];
+    end
+end
+
+end %minn
+
+
+%PARSEINPUTS    Support function for nearestneighbour
+function [P, X, fIndexed, userParams] = parseinputs(userParams, varargin)
+if length(varargin) == 1 || ~isnumeric(varargin{2})
+    P           = varargin{1};
+    X           = varargin{1};
+    fIndexed    = true;
+    varargin(1) = [];
+else
+    P             = varargin{1};
+    X             = varargin{2};
+    varargin(1:2) = [];
+
+    % Check the dimensions of X and P
+    if size(X, 1) ~= 1
+        % Check to see whether P is in fact a vector of indices
+        if size(P, 1) == 1
+            try
+                P = X(:, P);
+            catch
+                error('NearestNeighbour:InvalidIndexVector', ...
+                    'Unable to index matrix using index vector');
+            end
+            fIndexed = true;
+        else
+            fIndexed = false;
+        end % if size(P, 1) == 1
+    else % if size(X, 1) ~= 1
+        fIndexed = false;
+    end
+
+    if ~fIndexed && size(P, 1) ~= size(X, 1)
+        error('NearestNeighbour:DimensionMismatch', ...
+            'No. of rows of input arrays doesn''t match');
+    end
+end
+% Parse the Property/Value pairs
+if rem(length(varargin), 2) ~= 0
+    error('NearestNeighbour:propertyValueNotPair', ...
+        'Additional arguments must take the form of Property/Value pairs');
+end
+
+propertyNames = {'numberofneighbours', 'delaunaymode', 'triangulation', ...
+    'radius'};
+while length(varargin) ~= 0
+    property = varargin{1};
+    value    = varargin{2};
+
+    % If the property has been supplied in a shortened form, lengthen it
+    iProperty = find(strncmpi(property, propertyNames, length(property)));
+    if isempty(iProperty)
+        error('NearestNeighbour:InvalidProperty', 'Invalid Property');
+    elseif length(iProperty) > 1
+        error('NearestNeighbour:AmbiguousProperty', ...
+            'Supplied shortened property name is ambiguous');
+    end
+    property = propertyNames{iProperty};
+
+    switch property
+        case 'numberofneighbours'
+            if rem(value, 1) ~= 0 || ...
+                    value > length(X) - double(fIndexed) || ...
+                    value < 1
+                error('NearestNeighbour:InvalidNumberOfNeighbours', ...
+                    'Number of Neighbours must be an integer, and smaller than the no. of points in X');
+            end
+            userParams.NumberOfNeighbours = value;
+
+        case 'delaunaymode'
+            fOn = strcmpi(value, 'on');
+            if strcmpi(value, 'off')
+                userParams.DelaunayMode = 'off';
+            elseif fOn || strcmpi(value, 'auto')
+                if userParams.NumberOfNeighbours ~= 1
+                    if fOn
+                        warning('NearestNeighbour:TooMuchForDelaunay', ...
+                            'Delaunay Triangulation method works only for one neighbour');
+                    end
+                    userParams.DelaunayMode = 'off';
+                elseif size(X, 2) < size(X, 1) + 1
+                    if fOn
+                        warning('NearestNeighbour:TooFewDelaunayPoints', ...
+                            'Insufficient points to compute Delaunay triangulation');
+                    end
+                    userParams.DelaunayMode = 'off';
+
+                elseif size(X, 1) == 1
+                    if fOn
+                        warning('NearestNeighbour:DelaunayDimensionOne', ...
+                            'Cannot compute Delaunay triangulation for 1D input');
+                    end
+                    userParams.DelaunayMode = 'off';
+                else
+                    userParams.DelaunayMode = value;
+                end
+            else
+                warning('NearestNeighbour:InvalidOption', ...
+                    'Invalid Option');
+            end % if strcmpi(value, 'off')
+
+        case 'radius'
+            if isscalar(value) && isnumeric(value) && isreal(value) && value > 0
+                userParams.Radius = value;
+                if isempty(userParams.NumberOfNeighbours)
+                    userParams.NumberOfNeighbours = size(X, 2) - double(fIndexed);
+                end
+            else
+                error('NearestNeighbour:InvalidRadius', ...
+                    'Radius must be a positive real number');
+            end
+    
+
+        case 'triangulation'
+            if isnumeric(value) && size(value, 2) == size(X, 1) + 1 && ...
+                    all(ismember(1:size(X, 2), value))
+                userParams.Triangulation = value;
+            else
+                error('NearestNeighbour:InvalidTriangulation', ...
+                    'Triangulation not a valid Delaunay Triangulation');
+            end
+    end % switch property
+
+    varargin(1:2) = [];
+end % while
+if isempty(userParams.NumberOfNeighbours)
+    userParams.NumberOfNeighbours = 1;
+end
+end %parseinputs
