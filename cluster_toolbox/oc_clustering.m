@@ -65,6 +65,9 @@ if isempty(names)
    names = vec2str((1:N)');
 end;
 
+if iscell(names)
+   names = cell2mat(names);
+end
 loc_write_to_disk(d,names,filename)
 
 % Checking for which computer type in order to
