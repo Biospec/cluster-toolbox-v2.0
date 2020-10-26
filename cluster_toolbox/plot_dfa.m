@@ -11,6 +11,9 @@ function [] = plot_dfa(U,DF_x,DF_y,names)
 
 %asks for title
 tit = input('Title please (in quotes)  ');
+if iscell(names)
+    names = cell2mat(names);
+end
 if isnumeric(names)
     names = num2str(names(:));
 end
