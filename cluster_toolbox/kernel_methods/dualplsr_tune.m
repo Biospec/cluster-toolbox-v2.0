@@ -1,4 +1,4 @@
-function opt_parameter = dualplsr_tune(X, Y, ker, rep_idx)
+function opt_parameter = dualplsr_tune(X, Y, ker, rep_idx, plot_figuers)
 % opt_parameter = dualplsda_tune(X, Y, ker, rep_idx)
 % Tune kernel parameters and no. of latent variables of K-PLS regression model
 % X: the data matrix with each row represents a sample
@@ -17,6 +17,11 @@ function opt_parameter = dualplsr_tune(X, Y, ker, rep_idx)
 if nargin<4
     rep_idx = 1:m;
     rep_idx = rep_idx(:);
+    plot_figuers = false;
+end
+
+if nargin < 5
+    plot_figuers = false;
 end
 
    
@@ -66,10 +71,12 @@ switch ker
         opt_parameter.K = opt_K;
         opt_parameter.opt_rmsecv = rmsecv(opt_K);
         opt_parameter.opt_Q2 = Q2(opt_K,:);
-        figure
-        plot(rmsecv,'o-');
-        h=xlabel('No. of LVs'); set(h,'fontsize',14)
-        h=ylabel('RMSECV'); set(h, 'fontsize',14);
+        if plot_figuers
+            figure
+            plot(rmsecv,'o-');
+            h=xlabel('No. of LVs'); set(h,'fontsize',14)
+            h=ylabel('RMSECV'); set(h, 'fontsize',14);
+        end
     case 'poly'
         degree = 2:10;
         cv = zeros(m, n2, length(degree), max_factor);
@@ -120,14 +127,16 @@ switch ker
         opt_parameter.opt_rmsecv = squeeze(rmsecv(opt_k, opt_p,:));
         opt_parameter.cv_mat = rmsecv;
         opt_parameter.opt_Q2 = squeeze(Q2(opt_k, opt_p,:));
-        figure
-        h = image(rmsecv_av);
-        set(h,'CDatamapping','scaled');
-        colorbar
-        set(gca,'XTickLabel',num2str(degree(:)));
-        h = xlabel('Degrees'); set(h,'fontsize',14);
-        set(gca,'YTick',1:max_factor);
-        h = ylabel('No. of LVs'); set(h,'fontsize',14);
+        if plot_figuers
+            figure
+            h = image(rmsecv_av);
+            set(h,'CDatamapping','scaled');
+            colorbar
+            set(gca,'XTickLabel',num2str(degree(:)));
+            h = xlabel('Degrees'); set(h,'fontsize',14);
+            set(gca,'YTick',1:max_factor);
+            h = ylabel('No. of LVs'); set(h,'fontsize',14);
+        end
     case 'rbf'
         Xnorm = norm(X)/m/2;
         gamma = logspace(log10(Xnorm/100),log10(Xnorm*100),15);
@@ -179,16 +188,18 @@ switch ker
         opt_parameter.cv_mat = rmsecv;
         opt_parameter.opt_Q2 = squeeze(Q2(opt_k, opt_p,:));
         opt_parameter.Q2_mat = Q2;
-        figure
-        h = image(rmsecv_av);
-        set(h,'CDatamapping','scaled');
-        colorbar
-        gamma=round(log10(gamma)*10)/10;
-        set(gca,'XTick',1:15)
-        set(gca,'XTickLabel',num2str(gamma(:)));
-        h = xlabel('log10({\gamma})'); set(h,'fontsize',14);
-        set(gca,'YTick',1:max_factor);
-        h = ylabel('No. of LVs'); set(h,'fontsize',14);
+        if plot_figuers
+            figure
+            h = image(rmsecv_av);
+            set(h,'CDatamapping','scaled');
+            colorbar
+            gamma=round(log10(gamma)*10)/10;
+            set(gca,'XTick',1:15)
+            set(gca,'XTickLabel',num2str(gamma(:)));
+            h = xlabel('log10({\gamma})'); set(h,'fontsize',14);
+            set(gca,'YTick',1:max_factor);
+            h = ylabel('No. of LVs'); set(h,'fontsize',14);
+        end
     otherwise
         error('unknown kernel, it has to be linear, poly or rbf')
 end
