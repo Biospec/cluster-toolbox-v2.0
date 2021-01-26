@@ -68,6 +68,7 @@ symbol=['o';'s';'d';'v';'^';'<';'>';'p';'h';'x';'+';'*';'.'];
 
 figure
 hold on
+set(gcf, 'colormap', jet(256));
 count=1;
 for i=1:no_colors
     label1_now=label1(ismember(label1, unique_color{i}));
