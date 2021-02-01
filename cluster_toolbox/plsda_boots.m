@@ -10,37 +10,52 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
 %            should be [1;1;1;2;2;2;3;3;3;4;4;4;5;5;5]. The bootstrapping 
 %             will be performed on biological reps, i.e. all the analytical reps
 %             of the same biological sample are to be selected as a whole. 
-%           Assuming 1 rep for each biological sample if rep_idx is ignored.
+%             Assuming 1 rep for each biological sample if rep_idx is ignored.
 %   no_pcs: the number of maximum PLS components to be extracted, the optimal
 %             number of PLS component will be determined automatically using a 
 %             inner cross-validation, set to 15 if ignored.
-%    no_loops, the number of iterations of bootstrapping resampling, set to
+%   no_loops: the number of iterations of bootstrapping resampling, set to
 %            1000 if ignored.
+%   rebalance: 1 (default) to enable SMOTE algorithm to compensate imbalanced 
+%            class size, 0 to disable SMOTE algorithm.
 %
 %outputs:
+%       .Fcv: F-scores of inner cross-validation
+%       .Fscores: F-scores of test set of each bootstrapping iteration
+%       .Fscores2: F-scores of permuted test set of each bootstrapping
+%          iteration
+%       .precision: Precision scores of test sets
+%       .sensitivity: sensitivity scores of test sets
+%       .specificity: specificity scores of test sets
+%       .fnr: false negative rate of test sets
+%       .PLS_loadings: PLS loadings
+%       .PLS_scores: PLS scores
+%       .ccr: correct classification rates (CCR) 
+%       .ccr_avg: 
+%       .ccr_cv: CCR of inner cross-validation
+%       .ccr_perm: correct classification rates of the null models
+%       .ccr_perm_avg: averaged CCR of permuted test sets of all 
+%           bootstrapping iterations
 %       .class_known: known class labels of each bootstrapping
 %          iteration
 %       .class_pred: predicted class labels of each bootstrapping
 %          iteration
-%       .label_pred: raw predicted class labels
-%       .opt_pcs: optimal number of PLS components of each
-%          bootstrapping iteration
 %       .conf_mat: confusion matrices stored in a 3-D matrix
 %       .conf_mat_perm: confusion matrices of the null models
-%       .ccr: correct classification rates
-%       .ccr_perm: correct classification rates of the null models
-%       .label_fittness: the correlation between the permuted labels 
-%          and known labels
-%       .pval: the p-value
 %       .conf_mat_avg: averaged confusion matrix
 %       .conf_mat_perm_avg: averaged confusion matrix of the null
 %          models
-%       .ccr_avg: averaged correct classification rate
-%       .ccr_perm_avg: averaged correct classification rate of the
-%          null models
+%       .label_fittness: the correlation between the permuted labels 
+%          and known labels
+%       .label_pred: raw predicted class labels
+%       .opt_pcs: optimal number of PLS components of each
+%          bootstrapping iteration
+%       .pval: the p-value
+%       .sample_idx: the indices of samples used for testing in each
+%          bootstrapping iteration. Use "unique(rep_idx(sample_idx))" to 
+%          backtrack the replicates ids are if there were replicates.
 %       .vip_scores: vip_scores
-%       .PLS_loadings: PLS loadings
-%       .PLS_scores: PLS scores
+
 % Last update: 12/10/2015, Yun Xu
 
 
@@ -218,7 +233,8 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
         [tmp, class_tst_pred]=max(pred_L,[],2);
         [tmp, class_tst_pred2]=max(pred_L2,[],2);
         ccr=length(find(class_tst_pred==class_tst))/length(class_tst);
-        Ftest = fscores(class_tst, class_tst_pred);
+        [Ftest, precision, recall, FNR, specificity]  = fscores(class_tst, ...
+            class_tst_pred);
         ccr2=length(find(class_tst_pred2==class_tst))/length(class_tst); 
         Ftest2 = fscores(class_tst, class_tst_pred2);
         conf_mat=nan(no_class, no_class);
@@ -242,26 +258,26 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
             end
         end
         
-        output.pred_L{i} = pred_L;
-        output.known_class{i} = class_tst;
+        output.label_pred{i} = pred_L;
+        output.sample_idx = trn_idx2;        
         output.class_known{i}=class_tst;
-        output.class_pred{i}=class_tst_pred;
-        output.label_pred{i}=pred_L;
+        output.class_pred{i}=class_tst_pred;        
         output.opt_pcs(i)=opt_pcs;
         output.conf_mat(:,:,i)=conf_mat;        
         output.conf_mat_perm(:,:,i)=conf_mat2;
         output.ccr(i)=ccr;
         output.Fscores(i, :) = Ftest;
         output.Fscores2(i, :) = Ftest2;
+        output.precision(i, :) = precision;
+        output.sensitivity(i, :) = recall;
+        output.specificity(i, :) = specificity;
+        output.fnr(i, :) = FNR;
         output.Fcv(i, :) = F(opt_pcs, :);
         output.ccr_perm(i)=ccr2;
         output.label_fittness(i)=label_fittness;
         output.ccr_cv(i)=max(ccr_cv);
         output.vip_scores(:,:,i) = vip_scores;
         output.reg_coeff(:,:,i) = B;
-%         output.vip{i}=vip_scores;
-%         output.vip_perm{i}=vip_scores2;
-%         output.scores{i}=T;
         waitbar(i/no_loops,h,['No. of iterations = ' num2str(i) '/' num2str(no_loops)]);
     end
     delta=output.ccr-output.ccr_perm;
@@ -293,14 +309,7 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
     set(gca,'YLim',[0 max(get(gca,'YLim'))*1.05])
     
     
-    figure
-    h=image(nanmean(output.conf_mat,3));
-    set(h,'CDatamapping','scaled')
-    colorbar
-    h=title('Averaged confusion matrix');
-    set(h,'FontSize',14)
-    set(gca,'XTick',1:no_class)
-    set(gca,'YTick',1:no_class)
+    plot_confmat(output.conf_mat_avg);
     
     disp(['Averaged CCR = ' num2str(output.ccr_avg)])
     disp('Averaged confusion matrix is:')
@@ -625,8 +634,6 @@ function H = hatchfill(A,STYL,ANGLE,SPACING,FACECOL)
     end
 end
 
-%%%%%%%%%%%%%%%%%%% SUBFUNCTIONS %%%%%%%%%%%%%%%%%%%%%%%%
-
 function [xi,yi,x,y]=hatch_xy(x,y,varargin);
 %
 % M_HATCH Draws hatched or speckled interiors to a patch
@@ -889,7 +896,7 @@ function [xi,yi]=drawhatch(x,y,angle,step,xsc,ysc,speckle);
     yi = yi/ysc+y0;
 end
 
-function F = fscores(class_known, class_pred)
+function [F, precision, recall, FNR, specificty] = fscores(class_known, class_pred)
     unique_cls = unique(class_known);
     no_cls = numel(unique_cls);
     F = zeros(no_cls, 1);
@@ -897,20 +904,24 @@ function F = fscores(class_known, class_pred)
         TP = numel(find(class_known == i & class_pred == i));
         FP = numel(find(class_known ~= i & class_pred == i));
         FN = numel(find(class_known == i & class_pred ~= i));
+        TN = numel(find(class_known ~= i & class_pred ~= i));
         if TP + FP ==0
-            precision = 0;
+            precision(i) = 0;
         else
-            precision = TP / (TP+FP);
+            precision(i) = TP / (TP+FP);
         end
         if TP + FN == 0
-            recall = 0;
+            recall(i) = 0;
         else            
-            recall = TP / (TP+FN);
+            recall(i) = TP / (TP+FN);
         end
+        FNR(i) = FN / (FN + TP);
+        specificty(i) = TN / (TN + FP);
+        
         if precision + recall == 0
             F(i) = 0;
         else
-            F(i) = 2 * (precision * recall) / (precision + recall);
+            F(i) = 2 * (precision(i) * recall(i)) / (precision(i) + recall(i));
         end
     end
     
@@ -1170,14 +1181,6 @@ if isvector(idx)
 end
 end % nearestneighbour
 
-
-
-
-%DELAUNAYTEST   Work out whether the combination of dimensions makes
-%fastest to use a Delaunay triangulation in conjunction with dsearchn.
-%These parameters have been determined empirically on a Pentium M 1.6G /
-%WinXP / 512MB / Matlab R14SP3 platform. Their precision is not
-%particularly important
 function tf = delaunaytest(nx, np, dim)
 switch dim
     case 2
@@ -1194,11 +1197,6 @@ switch dim
 end % switch
 end % delaunaytest
 
-
-
-
-%MINN   find the n most negative elements in x, and return their indices
-%  in ascending order
 function I = minn(x, n)
 
 % Make sure n is no larger than length(x)
@@ -1224,8 +1222,6 @@ end
 
 end %minn
 
-
-%PARSEINPUTS    Support function for nearestneighbour
 function [P, X, fIndexed, userParams] = parseinputs(userParams, varargin)
 if length(varargin) == 1 || ~isnumeric(varargin{2})
     P           = varargin{1};
@@ -1352,3 +1348,5 @@ if isempty(userParams.NumberOfNeighbours)
     userParams.NumberOfNeighbours = 1;
 end
 end %parseinputs
+
+
