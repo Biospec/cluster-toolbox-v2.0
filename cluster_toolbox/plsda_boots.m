@@ -16,8 +16,8 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
 %             inner cross-validation, set to 15 if ignored.
 %   no_loops: the number of iterations of bootstrapping resampling, set to
 %            1000 if ignored.
-%   rebalance: 1 (default) to enable SMOTE algorithm to compensate imbalanced 
-%            class size, 0 to disable SMOTE algorithm.
+%   rebalance: set to 1 to enable SMOTE algorithm to compensate imbalanced 
+%            class size, set to 0 or ignoring this to disable SMOTE algorithm.
 %
 %outputs:
 %       .Fcv: F-scores of inner cross-validation
@@ -72,23 +72,23 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
         rep_idx=1:no_samples;
         rep_idx=rep_idx(:);
         no_loops=1000;
-        rebalance=true;
+        rebalance=0;
     end        
     
     
     if nargin == 3
         no_pcs=15;
         no_loops=1000;
-        rebalance=true;
+        rebalance=0;
     end
     
     if nargin==4
         no_loops=1000;
-        rebalance=true;
+        rebalance=0;
     end
     
     if nargin == 5
-        rebalance = true;
+        rebalance = 0;
     end
     
     if isempty(rep_idx) 
@@ -115,20 +115,17 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
     while i<no_loops
         clear pred_L pred_L2 opt_pc class_tst_pred class_tst_pred2
         trn_reps=rep_ids(unique(randi(no_reps,round(no_reps*1),1)));
-        trn_idx2=find(ismember(rep_idx, trn_reps));
-        rep_idx_trn=rep_idx(trn_idx2);
-        data_trn=data(trn_idx2,:);
+        trn_idx=find(ismember(rep_idx, trn_reps));
+        tst_idx=find(~ismember(rep_idx, trn_reps));
+        rep_idx_trn=rep_idx(trn_idx);
+        data_trn=data(trn_idx,:);
+        data_tst=data(tst_idx,:);
         no_reps_trn=length(trn_reps);
         no_sample_trn=size(data_trn,1);
-%         data_centre=mean(data_trn); 
-        
-        
-        label_trn=label(trn_idx2,:); 
+
+        label_trn=label(trn_idx,:); 
         [tmp,class_trn]=max(label_trn,[],2);
-
-
-
-        label_tst=label; label_tst(trn_idx2,:)=[];
+        label_tst=label(tst_idx, :);
         [tmp, class_tst]=max(label_tst,[],2);
 
         if length(unique(class_trn))==no_class && length(unique(class_tst))==no_class
@@ -137,33 +134,8 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
             continue;
         end
         
-        if rebalance
-            [data_trn, class_trn] = smote_sel(data_trn, class_trn, 5);
-            label_trn = zeros(size(data_trn,1), no_class);
-            for ii = 1:length(unique(class_trn))
-                label_trn(class_trn == ii, ii) = 1;
-            end
-            no_sample_trn = size(data_trn, 1);
-        end
             
-        for ii = 1:no_class
-            cls_centres(ii,:) = median(data_trn(class_trn == ii, :));
-        end
-        data_centre = median(cls_centres);
-        data_trn=data_trn-ones(no_sample_trn,1)*data_centre; 
-        data_tst=data; data_tst(trn_idx2,:)=[]; 
-        label_trn_perm=label_trn(randperm(size(label_trn,1)),:); 
-        [tmp,class_trn_perm]=max(label_trn_perm,[],2);
-        label_fittness=length(find(class_trn_perm==class_trn))/no_sample_trn;
-        [tmp, class_trn]=max(label_trn,[],2);        
-        label_centre=mean(label_trn);
-        label_trn=label_trn-ones(no_sample_trn,1)*mean(label_trn);
-
-%         data_tst=data_tst-repmat(data_centre, size(data_tst,1),1);
-%         if length(unique(class_tst))~=no_class
-%             i=i-1;
-%             continue
-%         end        
+     
         %if there were more than 14 reps, perform 7-fold cross-validation
         if no_reps_trn>14*no_class
             fold_step=round(no_reps_trn/7);
@@ -180,7 +152,20 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
            class_trn_inner = class_trn;
            class_trn_inner(val_idx) = [];
            data_trn_inner=data_trn; data_trn_inner(val_idx,:)=[];
-%            data_centre_inner=mean(data_trn_inner); 
+           label_trn_inner = label_trn; label_trn_inner(val_idx, :) = [];
+           [tmp, class_trn_inner]=max(label_trn_inner,[],2);
+
+           if rebalance
+               [data_trn_inner, class_trn_inner] = smote_sel(data_trn_inner, ...
+                   class_trn_inner, 5);
+               label_trn_inner = zeros(size(data_trn_inner, 1), no_class);
+               for k = 1:no_class
+                   label_trn_inner(class_trn_inner == k, k) = 1;
+               end               
+           end
+           label_centre_inner=mean(label_trn_inner);
+           label_trn_inner = label_trn_inner - repmat(label_centre_inner, ...
+               size(label_trn_inner, 1), 1);
            for iii = 1:no_class
                idx = find(class_trn_inner == iii);
                if numel(idx) > 1
@@ -193,17 +178,14 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
            end
            data_centre_inner = median(cls_centres_inner);
            data_trn_inner=data_trn_inner-repmat(data_centre_inner, size(data_trn_inner,1),1);
-%            data_val=data_val-repmat(data_centre_inner, length(val_idx),1);
-           label_trn_inner=label_trn; label_trn_inner(val_idx,:)=[];
-           [tmp, class_trn_inner]=max(label_trn_inner,[],2);
-           label_centre_inner=mean(label_trn_inner);
+              
+           
            [T,P,Q,W,b]=pls(data_trn_inner,label_trn_inner,min(no_pcs,no_sample_trn-fold_step));
            class_val_inner=zeros(size(data_val,1),min(no_pcs,no_sample_trn-fold_step));
-           delta_inner=zeros(size(class_val_inner));
+
            for iii=1:size(W,2)
                pred_L_val=plspred2(data_val,P,Q,W,b,iii, data_centre_inner,...
                    label_centre_inner,ones(1,no_var), ones(1,no_class));
-               %[~,class_val_inner(:,iii)]=max(pred_L_val,[],2);
                [tmp,class_val_inner(:,iii)]=max(pred_L_val,[],2);           
            end
            class_val(val_idx, :)=class_val_inner;
@@ -211,9 +193,7 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
         ccr_cv = zeros(min(no_pcs,no_sample_trn-fold_step), 1);
         for ii=1:min(no_pcs,no_sample_trn-fold_step)
             F(ii,:) = fscores(class_trn, class_val(:,ii));
-            F_cv(ii) = mean(F(ii,:));
-        
-%         for ii=no_class:min(no_pcs,no_sample_trn-fold_step)
+            F_cv(ii) = mean(F(ii,:));        
             correct_idx=find(class_val(:,ii)==class_trn);
             ccr_cv(ii)=(length(correct_idx))/length(class_trn);
         end
@@ -221,7 +201,42 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
         if length(opt_pcs)>1
             opt_pcs=opt_pcs(1);
         end
+        
+        if rebalance
+            no_samples_trn = size(data_trn, 1);
+            [data_trn, class_trn] = smote_sel(data_trn, class_trn, 5);
+            label_trn = zeros(size(data_trn,1), no_class);
+            for k = 1:length(unique(class_trn_inner))
+                label_trn(class_trn == k, k) = 1;
+            end
+            no_samples_added = size(data_trn, 1) - no_samples_trn;
+            perm_idx = reps_perm(rep_idx_trn); perm_idx = perm_idx(:);
+            perm_idx_added = no_samples_trn+1 : no_samples_trn + no_samples_added;
+            perm_idx_added = perm_idx_added(:);
+            perm_idx = [perm_idx; perm_idx_added(randperm(no_samples_added))];            
+        else
+            perm_idx = reps_perm(rep_idx_trn);
+        end
+        
+        for iii = 1:no_class
+            idx = find(class_trn == iii);
+            if numel(idx) > 1
+                cls_centres(iii,:) = median(data_trn(idx, :));
+            elseif numel(idx) == 1
+                cls_centresr(iii,:) = data_trn(idx,:);
+            else
+                cls_centres(iii,:) = 0;
+            end
+        end
+        data_centre = median(cls_centres_inner);
+        data_trn=data_trn-repmat(data_centre, size(data_trn,1),1);
+        label_centre=mean(label_trn);
+        label_trn = label_trn - repmat(label_centre, size(label_trn, 1), 1);
+        
         [T,P,Q,W,b]=pls(data_trn,label_trn,opt_pcs);
+        label_trn_perm=label_trn(perm_idx,:); 
+        [tmp,class_trn_perm]=max(label_trn_perm,[],2);
+        label_fittness=length(find(class_trn_perm==class_trn))/no_sample_trn;
         [T2,P2,Q2,W2,b2]=pls(data_trn,label_trn_perm,opt_pcs);        
         [pred_L, B]=plspred2(data_tst,P,Q,W,b,opt_pcs,data_centre,...
             label_centre,ones(1,no_var), ones(1,no_class));
@@ -259,7 +274,7 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
         end
         
         output.label_pred{i} = pred_L;
-        output.sample_idx = trn_idx2;        
+        output.sample_idx = tst_idx;        
         output.class_known{i}=class_tst;
         output.class_pred{i}=class_tst_pred;        
         output.opt_pcs(i)=opt_pcs;
@@ -1348,5 +1363,4 @@ if isempty(userParams.NumberOfNeighbours)
     userParams.NumberOfNeighbours = 1;
 end
 end %parseinputs
-
 
