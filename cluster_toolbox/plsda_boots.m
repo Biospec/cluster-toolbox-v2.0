@@ -193,13 +193,21 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
         ccr_cv = zeros(min(no_pcs,no_sample_trn-fold_step), 1);
         for ii=1:min(no_pcs,no_sample_trn-fold_step)
             F(ii,:) = fscores(class_trn, class_val(:,ii));
-            F_cv(ii) = mean(F(ii,:));        
+            F_cv(ii) = nanmean(F(ii,:));        
             correct_idx=find(class_val(:,ii)==class_trn);
             ccr_cv(ii)=(length(correct_idx))/length(class_trn);
         end
-        opt_pcs=find(F_cv==max(F_cv));
+        if all(isnan(F_cv))
+            opt_pcs = find(ccr_cv == max(ccr_cv));
+        else
+            opt_pcs=find(F_cv==max(F_cv));
+        end
         if length(opt_pcs)>1
             opt_pcs=opt_pcs(1);
+        elseif isempty(opt_pcs)           
+            warning('Cannot find an optimal LVs, might be an unfortunate combination? Discard current iteration.')
+            i = i - 1;
+            continue
         end
         
         if rebalance
