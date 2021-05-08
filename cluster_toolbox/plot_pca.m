@@ -11,9 +11,7 @@ function [] = plot_pca(tt,PC_x,PC_y,names, pr)
 
 %asks for title
 tit = input('Title please (in quotes)  ');
-if iscell(names)
-    names = cell2mat(names);
-end
+
 if isnumeric(names)
     names = num2str(names(:));
 end
