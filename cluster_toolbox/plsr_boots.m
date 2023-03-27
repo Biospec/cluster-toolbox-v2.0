@@ -222,7 +222,7 @@ function output = plsr_boots(data, conc, rep, no_pcs, no_loops)
             hold on
             h=errorbar(Cknown_av(:,i), pred_Cav(:,i), pred_Cstd(:,i));
             set(h,'linestyle','none'); 
-            h=line([min(Cknown_av) max(CKnown_av)], [min(Cknown_av) max(Cknown_av)]);
+            h=line([min(Cknown_av) max(Cknown_av)], [min(Cknown_av) max(Cknown_av)]);
             set(h,'linestyle', '--');
             b=pinv([ones(size(pred_Cav(:,i),1),1) pred_Cav(:,i)])*Cknown_av(:,i);
             fn = @(x)[ones(size(x,1),1) x]*b;
