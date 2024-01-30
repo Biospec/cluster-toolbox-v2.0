@@ -109,6 +109,17 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
        
     rep_ids=unique(rep_idx);
     no_reps=length(rep_ids);
+
+    % shuffle replicates ids to avoid unbalanced class distribution in
+    % inner CV
+    rep_ids2 = rep_ids(randperm(no_reps));
+    for i = 1:no_reps
+        idx = find(ismember(rep_idx, rep_ids2(i)));
+        rep_idx2(idx, 1) = i;
+    end
+    rep_idx = rep_idx2;
+
+    
     h= waitbar(0,'Please wait...');
     disp('Starting bootstrapping resampling...')
     i=0;
