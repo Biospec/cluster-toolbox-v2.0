@@ -125,7 +125,7 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
     i=0;
     while i<no_loops
         clear pred_L pred_L2 opt_pc class_tst_pred class_tst_pred2
-        trn_reps=rep_ids(unique(randi(no_reps,round(no_reps*1),1)));
+        trn_reps=rep_ids(unique(randi(no_reps,round(no_reps),1)));
         trn_idx=find(ismember(rep_idx, trn_reps));
         tst_idx=find(~ismember(rep_idx, trn_reps));
         rep_idx_trn=rep_idx(trn_idx);
