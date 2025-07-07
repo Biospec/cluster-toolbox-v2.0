@@ -118,6 +118,7 @@ function output = plsda_boots(data, label, rep_idx, no_pcs, no_loops, rebalance)
         rep_idx2(idx, 1) = i;
     end
     rep_idx = rep_idx2;
+    rep_ids2 = rep_ids(randperm(no_reps));
 
     
     h= waitbar(0,'Please wait...');
